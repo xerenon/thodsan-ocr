@@ -20,6 +20,9 @@ FONTS = [
     "mali/Mali-Light.ttf",
     "charm/Charm-Regular.ttf",          # ลายมือเอียง
     "charm/Charm-Bold.ttf",
+    "playpensansthai/PlaypenSansThai[wght].ttf",  # ลายมือเด็ก/casual (variable)
+    "kodchasan/Kodchasan-Regular.ttf",  # กึ่งลายมือ กลมๆ
+    "kodchasan/Kodchasan-Medium.ttf",
 ]
 
 

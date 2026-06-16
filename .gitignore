@@ -12,3 +12,5 @@ wandb/
 .pytest_cache/
 fonts/*.ttf
 fonts/*.otf
+*.tar
+*.tar.gz
