@@ -95,9 +95,3 @@ docs/          design spec, plan, WSL2 + raqm setup
 - Mix in synthetic data and collect more real samples, targeting CER < 10%.
 - Extend to specific domains (medical prescriptions, forms, government documents).
 - Deploy: push the merged model to Hugging Face, serve on a RunPod serverless endpoint.
-
----
-
-Base model: [typhoon-ai/typhoon-ocr-3b](https://huggingface.co/typhoon-ai/typhoon-ocr-3b) ·
-Dataset: [iapp/thai_handwriting_dataset](https://huggingface.co/datasets/iapp/thai_handwriting_dataset) ·
-Fonts: Google Fonts (OFL)
