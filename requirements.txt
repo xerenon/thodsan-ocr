@@ -1,0 +1,14 @@
+# PyTorch ต้องลงแยกด้วย index cu128 (Blackwell sm_120) — ดู README
+transformers>=4.49.0
+datasets>=3.0.0
+peft>=0.14.0
+accelerate>=1.3.0
+bitsandbytes>=0.45.0
+ms-swift>=3.0.0
+qwen-vl-utils>=0.0.8
+jiwer>=3.0.0
+pillow>=10.0.0
+pandas>=2.0.0
+requests>=2.31.0
+wandb>=0.18.0
+pytest>=8.0.0
