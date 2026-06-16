@@ -97,15 +97,17 @@ repo: `xerenon/thodsan-ocr` (private) — ใช้เป็นทั้ง sour
 git add -A; git commit -m "feat: runpod serverless worker"; git push origin main
 ```
 RunPod Console → Serverless → New Endpoint → **Deploy from a GitHub repository** → เชื่อม repo
-`xerenon/thodsan-ocr` → ชี้ Dockerfile = `cloud/serverless/Dockerfile`:
-- **Build env / Build arg: `HF_TOKEN` = <read token>** ← จำเป็น (ดึง adapter จาก HF private ตอน build)
+`xerenon/thodsan-ocr`, branch `main`, **Dockerfile path = `cloud/serverless/Dockerfile`**, **Queue** (default):
+- **Environment variable (runtime): `HF_TOKEN` = <read token>** ← จำเป็น; handler ใช้ดึง adapter จาก
+  HF private ตอน cold start (`handler._ensure_adapter`). build ไม่ต้องใช้ token (base เป็น public)
 - GPU: คลาส **16GB** (A4000 / A4500 / RTX 4000) — โมเดล 2B bf16 พอสบาย, ~$0.0002/s
 - **Max workers** เล็กๆ (เช่น 3), **Active workers = 0** (scale-to-zero ประหยัด)
-- Container disk ใหญ่พอเก็บ weight ที่ bake มา (~15GB)
+- Container disk ใหญ่พอเก็บ base ที่ bake มา (~15GB)
 
-> ทางเลือก (ไม่อยาก build บน cloud): build เอง แล้ว push ขึ้น registry —
-> `docker build -f cloud/serverless/Dockerfile --build-arg HF_TOKEN=hf_xxx -t <reg>/thaiocr-serverless:v2 .`
-> (`build_and_push.sh` ช่วยได้ แต่ต้องส่ง HF_TOKEN เอง) แล้วเลือก "Deploy from a Docker image" แทน
+> ทำไม adapter โหลด runtime ไม่ใช่ build: RunPod GitHub-build inject env ตอน runtime (ไม่ใช่ build-arg)
+> + ไม่ให้ token หลุดเข้า image layer. adapter แค่ 67MB โหลดตอน cold start ไม่กี่วินาที.
+> ทางเลือก (ไม่อยาก build บน cloud): `docker build -f cloud/serverless/Dockerfile -t <reg>/thaiocr-serverless:v2 .`
+> (ไม่ต้องมี token ตอน build) → push registry → เลือก "Deploy from a Docker image" → ใส่ `HF_TOKEN` เป็น env ตอนตั้ง endpoint เหมือนกัน
 
 > หมายเหตุเวอร์ชัน: pin `transformers==5.10.4` (เวอร์ชันที่เซฟโมเดลบน pod — local 4.57 โหลดไม่ขึ้น)
 > + `peft==0.19.1`. ถ้า build/load พังเรื่อง Qwen3-VL ให้เลื่อน transformers เป็นตัวล่าสุดที่มี Qwen3-VL.
@@ -122,4 +124,4 @@ python -m thaiocr.serve.client <handwriting.png>     # พิมพ์ latency +
 - adapter `adapter_config.json` ชี้ base เป็น path บน pod (`/dev/shm/...`) — ไม่เป็นไร handler โหลด base
   จาก HF id เองแล้วค่อย attach adapter (PEFT ใช้ base object ที่ส่งให้ ไม่สน path ใน config)
 - cold start แรกจะช้า (โหลด weight ขึ้น GPU) — warm แล้วเร็ว; ตั้ง active worker > 0 ถ้าอยากเลี่ยง cold start
-- HF_TOKEN ตอน build เป็น **read** token พอ; อย่า bake token ไว้ใน image (ใช้ build arg/secret เท่านั้น)
+- HF_TOKEN ใช้แค่ **read** token พอ; เป็น runtime env บน endpoint (ไม่อยู่ใน image/โค้ด)

@@ -21,7 +21,25 @@ from thaiocr.data.format import OCR_INSTRUCTION  # noqa: E402
 
 BASE_MODEL = os.environ.get("BASE_MODEL", "typhoon-ai/typhoon-ocr1.5-2b")
 ADAPTER_DIR = os.environ.get("ADAPTER_DIR", "/adapter")
+ADAPTER_REPO = os.environ.get("ADAPTER_REPO", "xerenon/thodsan-ocr")
 MAX_NEW_TOKENS = int(os.environ.get("MAX_NEW_TOKENS", "256"))
+
+
+def _ensure_adapter() -> str:
+    """Return a local dir holding the adapter. If ADAPTER_DIR isn't already populated
+    (e.g. baked into the image or mounted), pull it from the private HF repo using the
+    runtime HF_TOKEN env var. Only the two inference files are fetched (~67MB)."""
+    if os.path.exists(os.path.join(ADAPTER_DIR, "adapter_config.json")):
+        return ADAPTER_DIR
+    from huggingface_hub import snapshot_download
+
+    return snapshot_download(
+        ADAPTER_REPO,
+        local_dir=ADAPTER_DIR,
+        token=os.environ.get("HF_TOKEN"),
+        allow_patterns=["adapter_config.json", "adapter_model.safetensors"],
+    )
+
 
 # ---- cold-start load (once per worker) ----
 from transformers import AutoModelForImageTextToText, AutoProcessor  # noqa: E402
@@ -35,7 +53,7 @@ _model = AutoModelForImageTextToText.from_pretrained(
 )
 # Attach the adapter explicitly. adapter_config.json records a pod-local base path,
 # but PEFT uses the base object passed here, so that path is ignored.
-_model = PeftModel.from_pretrained(_model, ADAPTER_DIR)
+_model = PeftModel.from_pretrained(_model, _ensure_adapter())
 _model.eval()
 
 
