@@ -1,16 +1,17 @@
 """RunPod serverless handler — Thai handwriting OCR (typhoon-ocr1.5-2b + LoRA).
 
-Loads the base model + LoRA adapter ONCE at cold start (module scope); every job
-reuses them. Request/response shape matches src/thaiocr/serve/client.py:
+The model is loaded LAZILY on the first job (not at import) and the load is guarded:
+if it fails, the worker stays alive and returns the traceback in the job response
+instead of crash-looping silently. Request/response shape matches
+src/thaiocr/serve/client.py:
   in :  {"input": {"messages": [{role:"user", content:[{image_url|image}, {text}]}], "max_tokens": N}}
   out:  {"choices": [{"message": {"role":"assistant", "content": "<thai text>"}}]}
-RunPod wraps the return value under "output", so the client reads
-output.choices[0].message.content unchanged.
 """
 import base64
 import io
 import os
 import sys
+import traceback as _tb
 
 import torch
 from PIL import Image
@@ -24,11 +25,14 @@ ADAPTER_DIR = os.environ.get("ADAPTER_DIR", "/adapter")
 ADAPTER_REPO = os.environ.get("ADAPTER_REPO", "xerenon/thodsan-ocr")
 MAX_NEW_TOKENS = int(os.environ.get("MAX_NEW_TOKENS", "256"))
 
+_processor = None
+_model = None
+_load_error = None
+
 
 def _ensure_adapter() -> str:
-    """Return a local dir holding the adapter. If ADAPTER_DIR isn't already populated
-    (e.g. baked into the image or mounted), pull it from the private HF repo using the
-    runtime HF_TOKEN env var. Only the two inference files are fetched (~67MB)."""
+    """Return a local dir holding the adapter. If ADAPTER_DIR isn't already populated,
+    pull it from the private HF repo using the runtime HF_TOKEN env var (~67MB)."""
     if os.path.exists(os.path.join(ADAPTER_DIR, "adapter_config.json")):
         return ADAPTER_DIR
     from huggingface_hub import snapshot_download
@@ -41,20 +45,29 @@ def _ensure_adapter() -> str:
     )
 
 
-# ---- cold-start load (once per worker) ----
-from transformers import AutoModelForImageTextToText, AutoProcessor  # noqa: E402
-from peft import PeftModel  # noqa: E402
+def _load():
+    """Load base + adapter once. Captures any failure into _load_error (returned to
+    the caller) so the worker doesn't crash-loop and the error is visible."""
+    global _processor, _model, _load_error
+    if _model is not None or _load_error is not None:
+        return
+    try:
+        from transformers import AutoModelForImageTextToText, AutoProcessor
+        from peft import PeftModel
 
-_processor = AutoProcessor.from_pretrained(BASE_MODEL)
-# AutoModelForImageTextToText is class-agnostic — resolves to the Qwen3-VL class for
-# this checkpoint (NOT Qwen2_5_VL, which is the v1/3b model in scripts/baseline_eval.py).
-_model = AutoModelForImageTextToText.from_pretrained(
-    BASE_MODEL, torch_dtype=torch.bfloat16, device_map="cuda"
-)
-# Attach the adapter explicitly. adapter_config.json records a pod-local base path,
-# but PEFT uses the base object passed here, so that path is ignored.
-_model = PeftModel.from_pretrained(_model, _ensure_adapter())
-_model.eval()
+        proc = AutoProcessor.from_pretrained(BASE_MODEL, trust_remote_code=True)
+        # AutoModelForImageTextToText is class-agnostic — resolves to the Qwen3-VL class
+        # for this checkpoint (NOT Qwen2_5_VL, the v1/3b class in scripts/baseline_eval.py).
+        model = AutoModelForImageTextToText.from_pretrained(
+            BASE_MODEL, torch_dtype=torch.bfloat16, device_map="cuda",
+            trust_remote_code=True,
+        )
+        model = PeftModel.from_pretrained(model, _ensure_adapter())
+        model.eval()
+        _processor, _model = proc, model
+    except Exception:
+        _load_error = _tb.format_exc()
+        print("MODEL LOAD FAILED:\n" + _load_error, flush=True)
 
 
 def _decode_b64(b64: str) -> Image.Image:
@@ -62,11 +75,9 @@ def _decode_b64(b64: str) -> Image.Image:
 
 
 def _image_from_content(content) -> Image.Image:
-    """Pull the image out of an OpenAI-style content list.
-
-    Supports {"type":"image_url","image_url":{"url": "data:...;base64,..."}} (and plain
-    http(s) URLs), plus {"type":"image","image": "<base64>"}.
-    """
+    """Pull the image out of an OpenAI-style content list. Supports
+    {"type":"image_url","image_url":{"url": "data:...;base64,..."}} (and http(s) URLs),
+    plus {"type":"image","image": "<base64>"}."""
     for part in content:
         t = part.get("type")
         if t == "image_url":
@@ -97,6 +108,10 @@ def _ocr(pil_img: Image.Image, max_new_tokens: int) -> str:
 
 
 def handler(job):
+    _load()
+    if _load_error is not None:
+        return {"error": "model load failed", "trace": _load_error}
+
     inp = job.get("input") or {}
     msgs = inp.get("messages") or []
     user_msg = next((m for m in msgs if m.get("role") == "user"), msgs[-1] if msgs else None)
@@ -110,7 +125,10 @@ def handler(job):
     except Exception as e:  # noqa: BLE001
         return {"error": f"could not read image: {e}"}
     max_new = int(inp.get("max_tokens") or MAX_NEW_TOKENS)
-    text = _ocr(pil, max_new)
+    try:
+        text = _ocr(pil, max_new)
+    except Exception:
+        return {"error": "inference failed", "trace": _tb.format_exc()}
     return {"choices": [{"message": {"role": "assistant", "content": text}}]}
 
 
