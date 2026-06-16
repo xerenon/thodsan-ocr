@@ -9,6 +9,8 @@ and polls RunPod's `/status`, so a worker cold start never returns a partial res
 client  -->  this API (VPS, CPU)  -->  RunPod serverless (GPU)  -->  Thai text
 ```
 
+> Full step-by-step VPS install (Docker / systemd / nginx + TLS): see [`INSTALL.md`](INSTALL.md).
+
 ## Configure
 
 ```bash
