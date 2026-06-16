@@ -6,7 +6,10 @@
 #
 # Build context = repo root (COPY paths are repo-relative).
 #   Local build:  docker build -f cloud/serverless/Dockerfile -t <registry>/thaiocr-serverless:v2 .
-FROM pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime
+# torch >= 2.7 is REQUIRED: transformers 5.10.4 references torch.float8_e8m0fnu (added in
+# 2.7) at import. cuda12.8 matches the training pod (cu128). torch 2.8 runs fine on the
+# 16GB inference GPU (Ampere/Ada).
+FROM pytorch/pytorch:2.8.0-cuda12.8-cudnn9-runtime
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
