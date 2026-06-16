@@ -38,7 +38,9 @@ def load_and_split(out_dir: str = "data/splits", seed: int = 42):
 
     ds = load_dataset("iapp/thai_handwriting_dataset", split="train")
     # ใช้ label_file เป็น group proxy (ตัวบ่งแหล่ง/ผู้เขียน) เพื่อกัน leakage
-    items = [{"idx": i, "group": str(ds[i]["label_file"])} for i in range(len(ds))]
+    # column access (ds["label_file"]) เร็วมาก — ไม่ decode รูปทีละแถวแบบ ds[i]
+    labels = ds["label_file"]
+    items = [{"idx": i, "group": str(labels[i])} for i in range(len(labels))]
     train, val, test = split_by_group(items, val_frac=0.05, test_frac=0.10, seed=seed)
 
     os.makedirs(out_dir, exist_ok=True)

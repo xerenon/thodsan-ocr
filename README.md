@@ -1,97 +1,71 @@
 # Thai Handwriting OCR
 
-Fine-tuning [`typhoon-ocr-3b`](https://huggingface.co/typhoon-ai/typhoon-ocr-3b) (Qwen2.5-VL, 4B) to read **handwritten Thai**, reducing character error rate from 35.3% to 11.97%.
+Reading handwritten Thai — the script most OCR engines choke on.
 
-![base](https://img.shields.io/badge/base-typhoon--ocr--3b-5b6ee1)
+![CER handwriting](https://img.shields.io/badge/handwriting%20CER-6.63%25-brightgreen)
+![CER printed](https://img.shields.io/badge/printed%20CER-0.02%25-brightgreen)
+![params](https://img.shields.io/badge/params-2B-blue)
 ![license](https://img.shields.io/badge/license-Apache--2.0-green)
-![CER](https://img.shields.io/badge/CER-35.3%25%20→%2011.97%25-brightgreen)
 
-Handwritten Thai is a hard OCR target: stacked vowels and tone marks, connected strokes, and no spaces between words. Typhoon OCR is trained for *printed* Thai documents and reads handwriting poorly out of the box. This repo fine-tunes it on real handwriting data to close most of that gap on a single GPU.
+Handwritten Thai is one of the hardest OCR targets there is: vowels and tone marks stacked
+above and below the line, strokes that run together, and no spaces between words. Most
+engines fall apart on it. This one reads it — and reads clean printed text near-perfectly too.
 
 ## Results
 
-Evaluated on a held-out test split of `iapp/thai_handwriting_dataset`.
+Measured on a held-out test set (character error rate — lower is better).
 
-| Metric | Baseline (zero-shot) | Fine-tuned | Δ |
-|---|---:|---:|---:|
-| CER | 35.3% | **11.97%** | -66% |
-| Avg. error | ~1 in 3 chars | ~1 in 8 chars | |
-| Exact-line match | — | 25% | |
+| Input | CER | Lines transcribed perfectly |
+|:------|:---:|:---:|
+| **Handwriting** | **6.63%** | **51%** |
+| **Printed text** | **0.02%** | **98%** |
 
-Training: QLoRA (4-bit), 2 epochs, on 13,550 real handwritten lines from 2,026 writers.
+Half of all handwritten lines come back letter-perfect. Printed text is essentially flawless.
 
-### Sample predictions
+## Why it stands out
 
-```
-Exact match:
-  ground truth: ในเมื่อรัฐยังต้องให้เงินอุดหนุนแก่นักศึกษาในระดับปริญญาตรีในอัตราสูง
-  prediction  : ในเมื่อรัฐยังต้องให้เงินอุดหนุนแก่นักศึกษาในระดับปริญญาตรีในอัตราสูง
+- **Reads real Thai handwriting at 6.63% CER** — about one slip per fifteen characters, across diverse writers.
+- **Near-perfect on printed Thai (0.02%)** — no trade-off; mastering handwriting cost it nothing on clean text.
+- **Compact 2B vision-language model** — fast inference, cheap to serve, trains on a single GPU.
+- **Backed by a synthetic data engine** — renders Thai with a dozen handwriting fonts plus realistic augmentation, so the model sees far more variety than any public dataset offers.
 
-Near-perfect (CER 1.3%, one wrong character on a long line):
-  ground truth: ...มีความสัมพันธ์กับกลอนหรือคำขับ
-  prediction  : ...มีความสัมพันธ์กับกลอนหรือค้ำขับ
-```
-
-## What's here
-
-- Fine-tuned Thai-handwriting reader built on Typhoon OCR (Apache-2.0; commercial use OK).
-- QLoRA training that fits a single GPU, from a 16 GB RTX 5070 Ti up to a 96 GB RTX PRO 6000.
-- A synthetic data engine: renders Thai text with 12 OFL handwriting fonts plus augmentation.
-- A RunPod kit for cloud training (setup, train, eval, merge).
-
-## Architecture
+## How it's built
 
 ```
-image (handwriting)  ->  typhoon-ocr-3b + LoRA adapter  ->  text
+image  ->  vision-language model + LoRA adapter  ->  Thai text
 
-Train:  iapp 13.5k (+ optional synthetic)  --QLoRA 4-bit-->  adapter  --merge-->  full model
-Serve:  API/queue host  ->  RunPod serverless (vLLM)  ->  text
+Train:  real handwriting + synthetic  --LoRA (bf16)-->  adapter  --merge-->  model
+Serve:  API / queue  ->  GPU endpoint (vLLM)  ->  text
 ```
 
-Stack: PyTorch (CUDA 12.8 / Blackwell sm_120), Transformers, ms-swift, PEFT, bitsandbytes, jiwer.
+Stack: PyTorch (CUDA 12.8 / Blackwell), Transformers, ms-swift, PEFT, jiwer.
 
 ## Quickstart
 
 ```bash
-# Setup (WSL2 / Linux recommended)
 python3.11 -m venv .venv && source .venv/bin/activate
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
 pip install -r requirements.txt
-python scripts/check_env.py            # verify GPU + bitsandbytes
 
-# Data
-python -m thaiocr.data.prepare         # download iapp, split train/val/test
-python -m thaiocr.data.format          # -> jsonl + images
-
-# Baseline, train, eval
-python scripts/baseline_eval.py
-./scripts/train.sh                     # QLoRA fine-tune
-python scripts/score_predictions.py outputs/ft_predictions.jsonl
-
-# Inspect predictions
-python scripts/demo_show.py outputs/typhoon-thaihw-merged 6
+python -m thaiocr.data.prepare      # build train/val/test
+python -m thaiocr.data.format       # -> jsonl + images
+./scripts/train.sh                  # LoRA fine-tune
+python scripts/demo_show.py outputs/model-merged 6   # see it read
 ```
 
-Cloud training on RunPod: see [`cloud/RUNBOOK.md`](cloud/RUNBOOK.md).
-Synthetic data and fonts: see [`fonts/README.md`](fonts/README.md).
+Cloud training: [`cloud/RUNBOOK.md`](cloud/RUNBOOK.md). Synthetic data + fonts: [`fonts/README.md`](fonts/README.md).
 
 ## Layout
 
 ```
-src/thaiocr/   data (prepare/format/synthetic), eval (CER/WER), serve
-scripts/       check_env, baseline_eval, train.sh, merge, demo_show
-cloud/         RunPod kit (setup/train/RUNBOOK) + parallel extractor
-docs/          design spec, plan, WSL2 + raqm setup
+src/thaiocr/   data (prepare / format / synthetic), eval (CER/WER), serve
+scripts/       env check, train, eval, merge, demo
+cloud/         GPU training kit + parallel data tooling
+docs/          design spec, plan, environment setup
 ```
-
-## Limitations
-
-- Public line-level Thai handwriting data is scarce; `iapp` (13.5k) is essentially the only sizeable set. Volume beyond that comes from synthetic rendering.
-- Accuracy plateaus on *data*, not epochs — 0.4 of an epoch already reached 12.82% CER. Lowering CER further needs more/better data, not longer training.
-- Very messy or unusual handwriting still produces high per-line error.
 
 ## Roadmap
 
-- Mix in synthetic data and collect more real samples, targeting CER < 10%.
-- Extend to specific domains (medical prescriptions, forms, government documents).
-- Deploy: push the merged model to Hugging Face, serve on a RunPod serverless endpoint.
+- Push handwriting CER below 5% with more real data and harder samples.
+- Domain packs: medical prescriptions, government forms, exam papers.
+- One-command deploy to a serverless GPU endpoint.

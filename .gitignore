@@ -14,3 +14,4 @@ fonts/*.ttf
 fonts/*.otf
 *.tar
 *.tar.gz
+models/
