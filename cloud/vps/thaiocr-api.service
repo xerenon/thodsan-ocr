@@ -1,0 +1,18 @@
+# systemd unit for running the API without Docker.
+# Install:  sudo cp thaiocr-api.service /etc/systemd/system/  &&  sudo systemctl enable --now thaiocr-api
+# Assumes the app lives in /opt/thaiocr-api with a venv at /opt/thaiocr-api/.venv and a .env file.
+[Unit]
+Description=Thai Handwriting OCR API (RunPod frontend)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/thaiocr-api
+EnvironmentFile=/opt/thaiocr-api/.env
+ExecStart=/opt/thaiocr-api/.venv/bin/uvicorn app:app --host 0.0.0.0 --port 8000 --workers 2
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
