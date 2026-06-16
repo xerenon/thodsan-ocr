@@ -1,0 +1,9 @@
+# torch / torchvision come from the base image (pytorch/pytorch CUDA runtime).
+runpod
+transformers==5.10.4
+peft==0.19.1
+accelerate
+qwen-vl-utils
+pillow
+requests
+huggingface_hub
