@@ -38,6 +38,28 @@ python scripts/score_predictions.py outputs/ft_predictions.jsonl
 python scripts/merge.py
 ```
 
+## เฟส 2 — Synthetic Data Engine (เสริมข้อมูลจริง)
+
+ปั๊มภาพลายมือไทยสังเคราะห์ + ground-truth จากฟอนต์ลายมือ
+
+**ต้องเตรียม 2 อย่างก่อน:**
+1. **ฟอนต์ลายมือไทย** — วางไฟล์ `.ttf`/`.otf` ใน `fonts/`
+   แหล่ง: https://www.freethaifont.com (หมวด Thai Handwriting), https://www.f0nt.com
+2. **Pillow ที่มี raqm** (จัดวางสระ/วรรณยุกต์ไทยให้ถูก) — เช็ค:
+   ```bash
+   python -c "from PIL import features; print(features.check('raqm'))"
+   ```
+   ถ้า `False` → ติดตั้งใหม่ผ่าน conda-forge (แนะนำบน WSL2/Linux):
+   ```bash
+   conda install -c conda-forge pillow   # หรือ apt install libraqm-dev แล้ว pip reinstall pillow
+   ```
+   ⚠️ อย่า generate ถ้า raqm=False เพราะข้อความไทยจะเพี้ยน → หลอกโมเดล
+
+```bash
+python -m thaiocr.data.synthetic     # → data/swift/synth.jsonl + images
+# แล้วเอา synth.jsonl ไปรวมกับ train.jsonl ตอนเทรน (--dataset train.jsonl synth.jsonl)
+```
+
 ## รัน tests (โมดูล Python ล้วน ไม่ต้องใช้ GPU)
 
 ```bash
