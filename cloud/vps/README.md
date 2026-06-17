@@ -10,6 +10,8 @@ client  -->  this API (VPS, CPU)  -->  RunPod serverless (GPU)  -->  Thai text
 ```
 
 > Full step-by-step VPS install (Docker / systemd / nginx + TLS): see [`INSTALL.md`](INSTALL.md).
+> Client usage (curl / Python / JS examples): see [`USAGE.md`](USAGE.md).
+> Formal API spec: [`openapi.yaml`](openapi.yaml) (OpenAPI 3.1) — or the live one at `/openapi.json`.
 
 ## Configure
 

@@ -1,0 +1,139 @@
+openapi: 3.1.0
+info:
+  title: Thai Handwriting OCR API
+  version: "1.0"
+  description: >
+    A CPU-only frontend that proxies image OCR requests to a RunPod serverless GPU
+    endpoint and returns transcribed Thai text. Send an image, get back the text.
+servers:
+  - url: http://46.62.242.183:8000
+    description: VPS deployment (replace host / use https in production)
+
+security:
+  - ApiKeyAuth: []
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      description: Liveness probe. No auth required.
+      security: []
+      responses:
+        "200":
+          description: Service is up
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+                  endpoint: { type: string, example: wtoixvuklw37td }
+
+  /ocr:
+    post:
+      summary: OCR an uploaded image file
+      description: Multipart upload. The field name must be `file`.
+      parameters:
+        - in: query
+          name: max_tokens
+          required: false
+          schema: { type: integer, default: 4096 }
+          description: Output length cap. Default 4096 covers a full A4 page of Thai.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Image file (png / jpg / etc.)
+      responses:
+        "200":
+          description: Transcribed text
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OcrResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "502": { $ref: "#/components/responses/UpstreamError" }
+        "504": { $ref: "#/components/responses/Timeout" }
+
+  /ocr-json:
+    post:
+      summary: OCR an image given as base64 or a URL
+      description: Provide exactly one of `image_base64` or `image_url`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OcrJsonRequest" }
+      responses:
+        "200":
+          description: Transcribed text
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OcrResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "502": { $ref: "#/components/responses/UpstreamError" }
+        "504": { $ref: "#/components/responses/Timeout" }
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+  schemas:
+    OcrResponse:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+          description: Transcribed Thai text
+          example: "พรมสีขรึมแถมวางต้นไม้เมืองร้อนให้เหมาะมุมเพิ่มเข้าไปอีก"
+    OcrJsonRequest:
+      type: object
+      description: Provide either image_base64 or image_url.
+      properties:
+        image_base64:
+          type: string
+          description: Base64-encoded image (a `data:` URL prefix is tolerated).
+        image_url:
+          type: string
+          description: Public URL of an image the server will fetch.
+        max_tokens:
+          type: integer
+          default: 4096
+          description: Output length cap.
+    Error:
+      type: object
+      required: [detail]
+      properties:
+        detail: { type: string }
+  responses:
+    BadRequest:
+      description: Empty/invalid file, or neither image_base64 nor image_url given
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Unauthorized:
+      description: Missing or invalid X-API-Key
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    UpstreamError:
+      description: The GPU worker failed or returned no text
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Timeout:
+      description: OCR timed out (worker cold start or a very long page)
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
