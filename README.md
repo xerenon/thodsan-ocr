@@ -69,3 +69,13 @@ docs/          design spec, plan, environment setup
 - Push handwriting CER below 5% with more real data and harder samples.
 - Domain packs: medical prescriptions, government forms, exam papers.
 - One-command deploy to a serverless GPU endpoint.
+
+## Markdown document evaluation (CPU only)
+
+Compare saved document OCR responses with separate text, heading hierarchy, table,
+and reading-order scores. This is an independent evaluation path; handwriting
+training and CER/WER behavior are unchanged. Includes Thai metric fixtures and
+CPU-only automated tests, without loading a model.
+
+See [`docs/markdown-ocr-evaluation.md`](docs/markdown-ocr-evaluation.md) for metrics,
+limitations, JSONL/run metadata formats and Qwen3.5/Typhoon comparison instructions.

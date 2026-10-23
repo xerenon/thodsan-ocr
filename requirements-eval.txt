@@ -1,0 +1,4 @@
+# CPU-only evaluation and tests; no training / model runtime dependencies.
+jiwer>=3.0.0,<5
+markdown-it-py==3.0.0
+pytest>=8.0.0,<9

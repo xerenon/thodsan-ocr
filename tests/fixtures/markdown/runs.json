@@ -1,0 +1,18 @@
+[
+  {
+    "name": "perfect",
+    "model": "synthetic-fixture-only",
+    "revision": "v1",
+    "prompt": "ถอดข้อความภาษาไทยเป็น Markdown โดยคงหัวข้อ ตาราง และลำดับการอ่าน",
+    "decoding": {},
+    "predictions": "perfect.jsonl"
+  },
+  {
+    "name": "damaged",
+    "model": "synthetic-fixture-only",
+    "revision": "v1",
+    "prompt": "ถอดข้อความภาษาไทยเป็น Markdown โดยคงหัวข้อ ตาราง และลำดับการอ่าน",
+    "decoding": {},
+    "predictions": "damaged.jsonl"
+  }
+]
